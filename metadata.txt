@@ -1,0 +1,22 @@
+[general]
+name=HydroProfile
+description=Hydraulic profile generator for QGIS water distribution networks based on QGISRed results.
+about=HydroProfile is a QGIS plugin that generates hydraulic profiles along a user-defined path in pressurized water distribution networks using layers produced in QGISRed projects. The user selects a sequence of nodes on the map to define a path, and the plugin computes the cumulative distance along the path using pipe geometries. It can plot (1) the terrain/elevation profile from network node elevation attributes, (2) a selected nodal hydraulic variable from the node results layer (e.g., pressure or hydraulic head), and (3) optionally a selected link variable from the link results layer (e.g., flow, velocity, headloss), positioned along each segment. The chart is interactive and can be exported as PNG/SVG, and the computed series can be exported to CSV for engineering analysis and reporting.
+version=0.3.0
+qgisMinimumVersion=3.30
+author=Evanderson H. Aguiar
+email=evanderson.eng@gmail.com
+category=Analysis
+icon=icon.png
+type=python
+experimental=False
+deprecated=False
+
+homepage=https://github.com/Evanderson-Aguiar/HydroProfile
+repository=https://github.com/Evanderson-Aguiar/HydroProfile
+tracker=https://github.com/Evanderson-Aguiar/HydroProfile/issues
+
+tags=hydraulic,profile,water distribution,QGISRed,EPANET,pressure,head,network analysis
+
+[help]
+content=Documentation, usage examples and source code are available on the plugin repository homepage.
