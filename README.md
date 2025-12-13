@@ -1,8 +1,8 @@
-\# HydroProfile (QGIS Plugin)
+# HydroProfile (QGIS Plugin)
 
 
 
-HydroProfile is a QGIS plugin for generating \*\*hydraulic profiles\*\* along a \*\*user-defined path\*\* in pressurized water distribution networks, using \*\*QGISRed network layers and simulation result layers\*\*.
+HydroProfile is a QGIS plugin for generating **hydraulic profiles** along a **user-defined path** in pressurized water distribution networks, using **QGISRed network layers and simulation result layers**.
 
 
 
@@ -10,25 +10,25 @@ It is designed to work naturally with a QGIS project where a QGISRed model has a
 
 
 
-\- \*\*Network layers (inputs)\*\*: Junctions, Reservoirs, Tanks, Pipes (and optionally other assets)
+- **Network layers (inputs)**: Junctions, Reservoirs, Tanks, Pipes (and optionally other assets)
 
-\- \*\*Results layers (outputs)\*\*:
+- **Results layers (outputs)**:
 
-&nbsp; - \*\*Node results\*\*: pressure, head, etc.
+&nbsp; - **Node results**: pressure, head, etc.
 
-&nbsp; - \*\*Link results\*\*: flow, velocity, headloss, etc.
-
-
-
-HydroProfile lets you click nodes \*\*in sequence\*\* to define a path and then plots:
+&nbsp; - **Link results**: flow, velocity, headloss, etc.
 
 
 
-1\. \*\*Terrain/elevation profile\*\* (node elevation along the path)
+HydroProfile lets you click nodes **in sequence** to define a path and then plots:
 
-2\. \*\*Node variable profile\*\* (pressure/head/etc at each selected node)
 
-3\. \*\*Optional link variable profile\*\* (flow/headloss/etc for each pipe segment)
+
+1. **Terrain/elevation profile** (node elevation along the path)
+
+2. **Node variable profile** (pressure/head/etc at each selected node)
+
+3. **Optional link variable profile** (flow/headloss/etc for each pipe segment)
 
 
 
@@ -40,23 +40,23 @@ The plot is interactive and can be exported, and the underlying data can be expo
 
 
 
-\## Features
+## Features
 
 
 
-\- \*\*Interactive path selection\*\*: click nodes one-by-one on the map to define the profile path.
+- **Interactive path selection**: click nodes one-by-one on the map to define the profile path.
 
-\- \*\*Distance axis\*\*: builds a cumulative distance axis from the pipe geometries between consecutive selected nodes.
+- **Distance axis**: builds a cumulative distance axis from the pipe geometries between consecutive selected nodes.
 
-\- \*\*Terrain profile\*\*: reads node elevation (e.g. `elev`, `Elevation`, `cota`, etc.) from network node layers.
+- **Terrain profile**: reads node elevation (e.g. `elev`, `Elevation`, `cota`, etc.) from network node layers.
 
-\- \*\*Node results\*\*: plots a chosen field (e.g. pressure/head) from the selected node results layer.
+- **Node results**: plots a chosen field (e.g. pressure/head) from the selected node results layer.
 
-\- \*\*Link results (optional)\*\*: plots a chosen field (e.g. flow/headloss) from the selected link results layer.
+- **Link results (optional)**: plots a chosen field (e.g. flow/headloss) from the selected link results layer.
 
-\- \*\*Plot options\*\*: toggle terrain/nodes/links visibility, show data labels, set title and axis labels.
+- **Plot options**: toggle terrain/nodes/links visibility, show data labels, set title and axis labels.
 
-\- \*\*Exports\*\*:
+- **Exports**:
 
 &nbsp; - CSV (profile points)
 
@@ -68,19 +68,19 @@ The plot is interactive and can be exported, and the underlying data can be expo
 
 
 
-\## Requirements
+## Requirements
 
 
 
-\- \*\*QGIS 3.30+\*\* (as set in plugin metadata)
+- **QGIS 3.30+** (as set in plugin metadata)
 
-\- A QGIS project containing:
+- A QGIS project containing:
 
-&nbsp; - A \*\*pipes layer\*\* (links) with pipe geometries
+&nbsp; - A **pipes layer** (links) with pipe geometries
 
 &nbsp; - Node layers (junctions/tanks/reservoirs) used for elevation/profile nodes
 
-&nbsp; - A node results layer and (optionally) a link results layer produced by \*\*QGISRed\*\* (or compatible schema)
+&nbsp; - A node results layer and (optionally) a link results layer produced by **QGISRed** (or compatible schema)
 
 
 
@@ -92,33 +92,33 @@ The plot is interactive and can be exported, and the underlying data can be expo
 
 
 
-\## Installation
+## Installation
 
 
 
-\### Option A — QGIS Plugin Repository (recommended)
+### Option A — QGIS Plugin Repository (recommended)
 
-1\. In QGIS: \*\*Plugins → Manage and Install Plugins…\*\*
+1. In QGIS: **Plugins → Manage and Install Plugins…**
 
-2\. Search for \*\*HydroProfile\*\*
+2. Search for **HydroProfile**
 
-3\. Click \*\*Install\*\*
+3. Click **Install**
 
 
 
-\### Option B — Manual (from GitHub ZIP)
+### Option B — Manual (from GitHub ZIP)
 
-1\. Download the repository as ZIP from GitHub.
+1. Download the repository as ZIP from GitHub.
 
-2\. Extract the folder into your QGIS plugins directory:
+2. Extract the folder into your QGIS plugins directory:
 
-&nbsp;  - \*\*Windows\*\*:
+&nbsp;  - **Windows**:
 
-&nbsp;    `C:\\Users\\<USER>\\AppData\\Roaming\\QGIS\\QGIS3\\profiles\\default\\python\\plugins\\hydroprofile`
+&nbsp;    `C:Users<USER>AppDataRoamingQGISQGIS3profilesdefaultpythonpluginshydroprofile`
 
-3\. Restart QGIS.
+3. Restart QGIS.
 
-4\. Enable it in: \*\*Plugins → Manage and Install Plugins… → Installed\*\*
+4. Enable it in: **Plugins → Manage and Install Plugins… → Installed**
 
 
 
@@ -126,17 +126,17 @@ The plot is interactive and can be exported, and the underlying data can be expo
 
 
 
-\## Quick start (step-by-step)
+## Quick start (step-by-step)
 
 
 
-\### 1) Prepare your QGIS project
+### 1) Prepare your QGIS project
 
 Open a project that contains the QGISRed model and results layers:
 
 
 
-\- \*\*Network (inputs)\*\*:
+- **Network (inputs)**:
 
 &nbsp; - Junctions (points)
 
@@ -146,7 +146,7 @@ Open a project that contains the QGISRed model and results layers:
 
 &nbsp; - Pipes (lines)
 
-\- \*\*Results (outputs)\*\*:
+- **Results (outputs)**:
 
 &nbsp; - Node results layer (with node ID + results fields)
 
@@ -154,43 +154,43 @@ Open a project that contains the QGISRed model and results layers:
 
 
 
-\### 2) Open HydroProfile
+### 2) Open HydroProfile
 
-\- Click the \*\*HydroProfile\*\* icon in the toolbar (or open from the Plugins menu).
+- Click the **HydroProfile** icon in the toolbar (or open from the Plugins menu).
 
-\- The dock opens with two tabs:
+- The dock opens with two tabs:
 
-&nbsp; - \*\*Configuration\*\*
+&nbsp; - **Configuration**
 
-&nbsp; - \*\*Plot\*\*
-
-
-
-\### 3) Select layers (Configuration tab)
-
-In \*\*Results layers\*\*:
-
-\- Select the \*\*Node results layer\*\*
-
-\- Choose:
-
-&nbsp; - \*\*Node ID field (results)\*\* (must match the network node IDs)
-
-&nbsp; - \*\*Node variable field\*\* (e.g. Pressure, Head)
+&nbsp; - **Plot**
 
 
 
-Optionally, select the \*\*Link results layer\*\* and choose:
+### 3) Select layers (Configuration tab)
 
-\- \*\*Link ID field (results)\*\*
+In **Results layers**:
 
-\- \*\*Link variable field\*\* (e.g. Flow, Headloss)
+- Select the **Node results layer**
+
+- Choose:
+
+&nbsp; - **Node ID field (results)** (must match the network node IDs)
+
+&nbsp; - **Node variable field** (e.g. Pressure, Head)
 
 
 
-In \*\*Network layers\*\*:
+Optionally, select the **Link results layer** and choose:
 
-\- Select:
+- **Link ID field (results)**
+
+- **Link variable field** (e.g. Flow, Headloss)
+
+
+
+In **Network layers**:
+
+- Select:
 
 &nbsp; - Junctions
 
@@ -202,13 +202,13 @@ In \*\*Network layers\*\*:
 
 
 
-In \*\*Network node fields\*\*:
+In **Network node fields**:
 
-\- Select:
+- Select:
 
-&nbsp; - \*\*Node ID field (network)\*\*
+&nbsp; - **Node ID field (network)**
 
-&nbsp; - \*\*Elevation field (network)\*\*
+&nbsp; - **Elevation field (network)**
 
 
 
@@ -216,55 +216,55 @@ In \*\*Network node fields\*\*:
 
 
 
-\### 4) Configure plot options
+### 4) Configure plot options
 
 Choose what to display:
 
-\- ✅ Show node results
+- ✅ Show node results
 
-\- ✅ Show terrain/elevation profile
+- ✅ Show terrain/elevation profile
 
-\- (Optional) ✅ Show link results
+- (Optional) ✅ Show link results
 
-\- (Optional) ✅ Show data labels
+- (Optional) ✅ Show data labels
 
 
 
 Set:
 
-\- Title
+- Title
 
-\- X label
+- X label
 
-\- Y label
+- Y label
 
 
 
-\### 5) Select a path on the map
+### 5) Select a path on the map
 
-1\. Click \*\*Pick path on map\*\*
+1. Click **Pick path on map**
 
-2\. On the map canvas, click nodes in order:
+2. On the map canvas, click nodes in order:
 
 &nbsp;  - Junctions / reservoirs / tanks (whatever you configured as node layers)
 
-3\. Each click adds a line to the “Path (selected nodes)” list.
+3. Each click adds a line to the “Path (selected nodes)” list.
 
 
 
 Tips:
 
-\- Pick nodes that are connected by pipes (for best distance computation).
+- Pick nodes that are connected by pipes (for best distance computation).
 
-\- If you click the wrong node, use \*\*Clear path\*\* and reselect.
+- If you click the wrong node, use **Clear path** and reselect.
 
 
 
-\### 6) Generate the profile
+### 6) Generate the profile
 
-\- Click \*\*Generate profile\*\*
+- Click **Generate profile**
 
-\- HydroProfile will:
+- HydroProfile will:
 
 &nbsp; - compute cumulative distances between consecutive nodes
 
@@ -274,15 +274,15 @@ Tips:
 
 &nbsp; - extract link results values for each pipe segment (if enabled)
 
-\- The plugin automatically switches to the \*\*Plot\*\* tab.
+- The plugin automatically switches to the **Plot** tab.
 
 
 
-\### 7) Export (optional)
+### 7) Export (optional)
 
-\- \*\*Export data (CSV)\*\*: exports terrain, node values, and link values into one CSV file (sections)
+- **Export data (CSV)**: exports terrain, node values, and link values into one CSV file (sections)
 
-\- \*\*Export plot (PNG/SVG)\*\*: exports the current chart as an image
+- **Export plot (PNG/SVG)**: exports the current chart as an image
 
 
 
@@ -290,7 +290,7 @@ Tips:
 
 
 
-\## How distances are computed (engineering logic)
+## How distances are computed (engineering logic)
 
 
 
@@ -298,23 +298,23 @@ For each consecutive pair of selected nodes:
 
 
 
-1\. HydroProfile attempts to find the pipe connecting them by checking for common “from/to” fields in the pipes layer:
+1. HydroProfile attempts to find the pipe connecting them by checking for common “from/to” fields in the pipes layer:
 
 &nbsp;  - `FromNode / ToNode`
 
-&nbsp;  - `from\_node / to\_node`
+&nbsp;  - `from_node / to_node`
 
 &nbsp;  - `Node1 / Node2`
 
 &nbsp;  - `StartNode / EndNode`
 
-2\. If it finds the connecting pipe, it uses the \*\*pipe geometry length\*\* as segment length.
+2. If it finds the connecting pipe, it uses the **pipe geometry length** as segment length.
 
-3\. If it cannot reliably find the connecting pipe, it falls back to \*\*straight-line distance\*\* between the two node geometries.
+3. If it cannot reliably find the connecting pipe, it falls back to **straight-line distance** between the two node geometries.
 
 
 
-The X axis is the \*\*cumulative sum\*\* of segment lengths along the selected path.
+The X axis is the **cumulative sum** of segment lengths along the selected path.
 
 
 
@@ -322,27 +322,27 @@ The X axis is the \*\*cumulative sum\*\* of segment lengths along the selected p
 
 
 
-\## How layers are joined (IDs)
+## How layers are joined (IDs)
 
 
 
-HydroProfile assumes you have a \*\*common identifier\*\*:
+HydroProfile assumes you have a **common identifier**:
 
 
 
-\- Network node ID (junction/reservoir/tank layer) ↔ Node results layer ID
+- Network node ID (junction/reservoir/tank layer) ↔ Node results layer ID
 
-\- Pipe/link ID (pipes layer) ↔ Link results layer ID
+- Pipe/link ID (pipes layer) ↔ Link results layer ID
 
 
 
 You configure these via:
 
-\- \*\*Node ID field (network)\*\*
+- **Node ID field (network)**
 
-\- \*\*Node ID field (results)\*\*
+- **Node ID field (results)**
 
-\- \*\*Link ID field (results)\*\*
+- **Link ID field (results)**
 
 
 
@@ -354,75 +354,75 @@ You configure these via:
 
 
 
-\## Common issues and troubleshooting
+## Common issues and troubleshooting
 
 
 
-\### “The terrain profile is all zeros”
+### “The terrain profile is all zeros”
 
 Usually one of:
 
-\- You selected the wrong \*\*Elevation field (network)\*\*.
+- You selected the wrong **Elevation field (network)**.
 
-\- Your elevation is not stored in attributes (or is null).
+- Your elevation is not stored in attributes (or is null).
 
-\- Your node geometries do not have Z values.
+- Your node geometries do not have Z values.
 
 
 
 Fix:
 
-\- In \*\*Network node fields\*\*, select the correct elevation attribute (often `elev`, `Elevation`, `cota`, etc.).
+- In **Network node fields**, select the correct elevation attribute (often `elev`, `Elevation`, `cota`, etc.).
 
-\- Confirm values in the attribute table for your node layer.
+- Confirm values in the attribute table for your node layer.
 
 
 
-\### “Link values do not appear”
+### “Link values do not appear”
 
 Most likely:
 
-\- The plugin could not match link IDs (pipes ↔ link results).
+- The plugin could not match link IDs (pipes ↔ link results).
 
-\- The pipes layer does not expose from/to fields and no pipe feature is found between nodes.
+- The pipes layer does not expose from/to fields and no pipe feature is found between nodes.
 
 
 
 Fix:
 
-\- Confirm the link results ID field and that IDs match pipes.
+- Confirm the link results ID field and that IDs match pipes.
 
-\- Ensure nodes are clicked in a connected sequence.
+- Ensure nodes are clicked in a connected sequence.
 
-\- If necessary, align the schema (rename fields or adapt the `\_find\_pipe\_between\_nodes` logic in `logic.py`).
+- If necessary, align the schema (rename fields or adapt the `_find_pipe_between_nodes` logic in `logic.py`).
 
 
 
-\### “Nothing happens when I click nodes”
+### “Nothing happens when I click nodes”
 
 Usually:
 
-\- The wrong node layers are selected (junction/reservoir/tank).
+- The wrong node layers are selected (junction/reservoir/tank).
 
-\- The click tolerance is too small at current zoom.
+- The click tolerance is too small at current zoom.
 
 
 
 Fix:
 
-\- Zoom in slightly and click again.
+- Zoom in slightly and click again.
 
-\- Confirm the node layers were selected correctly.
+- Confirm the node layers were selected correctly.
 
 
 
-\### Plugin updates not reflected
+### Plugin updates not reflected
 
 QGIS can keep old modules cached in memory.
 
 Fix:
 
-\- Disable and re-enable the plugin, or restart QGIS (recommended during development).
+- Disable and re-enable the plugin, or restart QGIS (recommended during development).
 
 
 
@@ -430,15 +430,15 @@ Fix:
 
 
 
-\## Recommended workflow with QGISRed
+## Recommended workflow with QGISRed
 
 
 
-1\. Build your network model in QGISRed.
+1. Build your network model in QGISRed.
 
-2\. Run the simulation to generate results layers.
+2. Run the simulation to generate results layers.
 
-3\. Open HydroProfile and select:
+3. Open HydroProfile and select:
 
 &nbsp;  - node results layer + variable (pressure/head)
 
@@ -446,9 +446,9 @@ Fix:
 
 &nbsp;  - optional link results layer + variable (flow/headloss)
 
-4\. Pick a path (e.g., from reservoir → main trunk → critical node)
+4. Pick a path (e.g., from reservoir → main trunk → critical node)
 
-5\. Generate the profile and export plot/CSV for reporting.
+5. Generate the profile and export plot/CSV for reporting.
 
 
 
@@ -456,7 +456,7 @@ Fix:
 
 
 
-\## Project status and roadmap
+## Project status and roadmap
 
 
 
@@ -464,15 +464,15 @@ HydroProfile is actively evolving. Typical next improvements include:
 
 
 
-\- Explicit configuration for pipe link ID field (network) independent of results ID field
+- Explicit configuration for pipe link ID field (network) independent of results ID field
 
-\- Closest-feature selection (instead of first feature in tolerance)
+- Closest-feature selection (instead of first feature in tolerance)
 
-\- More robust pipe matching (attribute index, spatial index)
+- More robust pipe matching (attribute index, spatial index)
 
-\- Better rendering for link values (horizontal segments over each pipe)
+- Better rendering for link values (horizontal segments over each pipe)
 
-\- Optional overlay with headloss accumulation and energy grade line (EGL/HGL)
+- Optional overlay with headloss accumulation and energy grade line (EGL/HGL)
 
 
 
@@ -480,27 +480,27 @@ HydroProfile is actively evolving. Typical next improvements include:
 
 
 
-\## Contributing
+## Contributing
 
 
 
 Issues and pull requests are welcome:
 
-\- Repository: https://github.com/Evanderson-Aguiar/HydroProfile
+- Repository: https://github.com/Evanderson-Aguiar/HydroProfile
 
-\- Issues: https://github.com/Evanderson-Aguiar/HydroProfile/issues
+- Issues: https://github.com/Evanderson-Aguiar/HydroProfile/issues
 
 
 
 If you report a bug, please include:
 
-\- QGIS version
+- QGIS version
 
-\- A screenshot of selected layers/fields
+- A screenshot of selected layers/fields
 
-\- A snippet of attribute tables for IDs/elevation/results fields
+- A snippet of attribute tables for IDs/elevation/results fields
 
-\- Steps to reproduce
+- Steps to reproduce
 
 
 
@@ -508,11 +508,11 @@ If you report a bug, please include:
 
 
 
-\## License
+## License
 
 
 
-This plugin is licensed under \*\*GPL-2.0-or-later\*\*.
+This plugin is licensed under **GPL-2.0-or-later**.
 
 See the `LICENSE` file for details.
 
