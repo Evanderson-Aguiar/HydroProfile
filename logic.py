@@ -20,6 +20,7 @@ Design goals:
 from __future__ import annotations
 
 import csv
+import heapq
 from typing import Dict, Any, List, Optional, Tuple
 
 from qgis.core import (
@@ -27,6 +28,7 @@ from qgis.core import (
     QgsFeature,
     QgsFeatureRequest,
     QgsGeometry,
+    QgsPointXY,
 )
 
 
@@ -115,24 +117,27 @@ def build_profile_data(
         id_field=node_id_field_results,
         value_field=node_var_field,
         layer_role="node results",
-    ) if node_results_layer else {}
+    ) if show_nodes and node_results_layer else {}
 
     link_results = _build_results_lookup(
         link_results_layer,
         id_field=link_id_field_results,
         value_field=link_var_field,
         layer_role="link results",
-    ) if link_results_layer else {}
+    ) if show_links and link_results_layer else {}
 
     # Output series
     terrain_dist: List[float] = []
     terrain_elev: List[float] = []
+    terrain_node_ids: List[Any] = []
 
     node_dist: List[float] = []
     node_vals: List[float] = []
+    node_ids: List[Any] = []
 
     link_dist: List[float] = []
     link_vals: List[float] = []
+    link_ids: List[Any] = []
 
     # Cumulative distance
     dist_cum = 0.0
@@ -140,6 +145,14 @@ def build_profile_data(
 
     # Precompute fields availability for faster checks
     pipes_fields = set(pipes_layer.fields().names())
+    pipe_connection_index = _build_pipe_connection_index(
+        pipes_layer,
+        pipes_fields,
+        node_path=node_path,
+    )
+
+    if show_links and link_results_layer and link_id_field_network not in pipes_fields:
+        raise ValueError(f"Link ID field '{link_id_field_network}' not found in pipes layer.")
 
     # Iterate picked nodes
     for i, entry in enumerate(node_path):
@@ -161,6 +174,7 @@ def build_profile_data(
             pipe_feat, seg_len = _segment_length_between_nodes(
                 pipes_layer=pipes_layer,
                 pipes_fields=pipes_fields,
+                pipe_connection_index=pipe_connection_index,
                 prev_node_id=prev_id,
                 curr_node_id=node_id,
                 prev_geom=prev_feat.geometry(),
@@ -177,18 +191,22 @@ def build_profile_data(
                 if pipe_feat is not None and link_id_field_network in pipes_fields:
                     pipe_id = pipe_feat[link_id_field_network]
                     link_value = link_results.get(pipe_id)
+                else:
+                    pipe_id = None
 
                 # If we have a link value, place at midpoint
                 if link_value is not None:
                     mid_dist = dist_cum - (seg_len / 2.0 if seg_len else 0.0)
                     link_dist.append(float(mid_dist))
                     link_vals.append(_to_float(link_value))
+                    link_ids.append(pipe_id)
 
         # Terrain (optional)
         if show_terrain:
             elev = _get_elevation(feat_net, node_elev_field)
             terrain_dist.append(float(dist_cum))
             terrain_elev.append(_to_float(elev))
+            terrain_node_ids.append(node_id)
 
         # Node results (optional)
         if show_nodes and node_results_layer:
@@ -196,13 +214,14 @@ def build_profile_data(
             if node_value is not None:
                 node_dist.append(float(dist_cum))
                 node_vals.append(_to_float(node_value))
+                node_ids.append(node_id)
 
         prev_entry = entry
 
     return {
-        "terrain": {"dist": terrain_dist, "elev": terrain_elev},
-        "nodes": {"dist": node_dist, "value": node_vals, "field": node_var_field},
-        "links": {"dist": link_dist, "value": link_vals, "field": link_var_field},
+        "terrain": {"dist": terrain_dist, "elev": terrain_elev, "node_ids": terrain_node_ids},
+        "nodes": {"dist": node_dist, "value": node_vals, "field": node_var_field, "node_ids": node_ids},
+        "links": {"dist": link_dist, "value": link_vals, "field": link_var_field, "link_ids": link_ids},
     }
 
 
@@ -242,6 +261,58 @@ def export_profile_to_csv(profile_data: Dict[str, Dict[str, Any]], filename: str
         for d, v in zip(profile_data.get("links", {}).get("dist", []),
                         profile_data.get("links", {}).get("value", [])):
             writer.writerow([d, v])
+
+
+def expand_path_with_intermediate_nodes(
+    node_path: List[dict],
+    pipes_layer: QgsVectorLayer,
+    node_layers: List[QgsVectorLayer],
+    node_id_field_network: str,
+) -> List[dict]:
+    """
+    Expand user-picked waypoint nodes into a full connected path.
+
+    The user can click only start/end or a few required waypoints. This function
+    uses the pipes layer connectivity to find the shortest path between each
+    consecutive pair and returns all intermediate network nodes in order.
+    """
+    _validate_node_path(node_path)
+    _validate_layer(pipes_layer, "pipes_layer")
+
+    pipes_fields = set(pipes_layer.fields().names())
+    node_lookup = _build_network_node_lookup(node_layers, node_id_field_network)
+    for entry in node_path:
+        key = _normalize_node_id(entry.get("node_id"))
+        node_lookup[key] = {
+            "layer": entry["layer"],
+            "fid": entry["fid"],
+            "node_id": entry.get("node_id"),
+        }
+
+    endpoint_fields = _pipe_endpoint_fields(pipes_fields)
+    if endpoint_fields is not None:
+        graph = _build_pipe_graph_from_endpoint_fields(pipes_layer, endpoint_fields)
+    else:
+        graph = _build_pipe_graph_from_geometry(pipes_layer, node_lookup)
+
+    expanded: List[dict] = []
+    for i in range(1, len(node_path)):
+        start_id = _normalize_node_id(node_path[i - 1].get("node_id"))
+        end_id = _normalize_node_id(node_path[i].get("node_id"))
+        segment_ids = _shortest_node_path(graph, start_id, end_id)
+
+        if i > 1:
+            segment_ids = segment_ids[1:]
+
+        for node_id in segment_ids:
+            if node_id not in node_lookup:
+                raise ValueError(
+                    f"Node '{node_id}' is part of the computed path but was not found "
+                    "in the selected node layers."
+                )
+            expanded.append(node_lookup[node_id])
+
+    return expanded
 
 
 # ----------------------------------------------------------------------
@@ -339,6 +410,7 @@ def _get_elevation(feat_net: QgsFeature, elev_field: str) -> Any:
 def _segment_length_between_nodes(
     pipes_layer: QgsVectorLayer,
     pipes_fields: set,
+    pipe_connection_index: Dict[Tuple[str, str], QgsFeature],
     prev_node_id: Any,
     curr_node_id: Any,
     prev_geom: QgsGeometry,
@@ -353,9 +425,15 @@ def _segment_length_between_nodes(
 
     Returns: (pipe_feature or None, length)
     """
-    pipe_feat = _find_pipe_between_nodes(pipes_layer, pipes_fields, prev_node_id, curr_node_id)
-    if pipe_feat is not None and pipe_feat.geometry() is not None:
-        return pipe_feat, float(pipe_feat.geometry().length())
+    pipe_feat = _find_pipe_between_nodes(
+        pipes_layer,
+        pipes_fields,
+        pipe_connection_index,
+        prev_node_id,
+        curr_node_id,
+    )
+    if pipe_feat is not None:
+        return pipe_feat, _pipe_length(pipe_feat)
 
     # Fallback: straight-line distance (planar)
     if prev_geom is not None and curr_geom is not None:
@@ -370,6 +448,7 @@ def _segment_length_between_nodes(
 def _find_pipe_between_nodes(
     pipes_layer: QgsVectorLayer,
     pipes_fields: set,
+    pipe_connection_index: Dict[Tuple[str, str], QgsFeature],
     node_id_1: Any,
     node_id_2: Any,
 ) -> Optional[QgsFeature]:
@@ -380,27 +459,369 @@ def _find_pipe_between_nodes(
     - Look for common from/to field name patterns in the pipes layer
     - Scan pipes and match (from==A and to==B) or (from==B and to==A)
 
-    For large networks, a spatial or attribute index is recommended; however, for
-    typical user-picked paths, the number of segments is small and this is often OK.
+    The preferred path uses an in-memory index built once per profile generation.
+    A scan fallback is kept for safety if the index cannot be built.
 
     You may tailor this function to QGISRed exact schema if needed.
     """
-    from_candidates = [n for n in pipes_fields if n.lower() in ("fromnode", "from_node", "node1", "startnode", "start_node")]
-    to_candidates = [n for n in pipes_fields if n.lower() in ("tonode", "to_node", "node2", "endnode", "end_node")]
+    key = _pipe_connection_key(node_id_1, node_id_2)
+    if key in pipe_connection_index:
+        return pipe_connection_index[key]
 
-    if not from_candidates or not to_candidates:
+    endpoint_fields = _pipe_endpoint_fields(pipes_fields)
+    if endpoint_fields is None:
         return None
 
-    f_from = from_candidates[0]
-    f_to = to_candidates[0]
+    f_from, f_to = endpoint_fields
 
     for f in pipes_layer.getFeatures():
         a = f[f_from]
         b = f[f_to]
-        if (a == node_id_1 and b == node_id_2) or (a == node_id_2 and b == node_id_1):
+        if _pipe_connection_key(a, b) == key:
             return f
 
     return None
+
+
+def _build_pipe_connection_index(
+    pipes_layer: QgsVectorLayer,
+    pipes_fields: set,
+    node_path: Optional[List[dict]] = None,
+) -> Dict[Tuple[str, str], QgsFeature]:
+    """
+    Build an undirected lookup {(node_a, node_b) -> pipe feature}.
+
+    Node IDs are normalized to strings so matching remains tolerant when one
+    layer stores IDs as numbers and another stores equivalent text values.
+    """
+    endpoint_fields = _pipe_endpoint_fields(pipes_fields)
+    if endpoint_fields is None:
+        return _build_pipe_connection_index_from_geometry(pipes_layer, node_path or [])
+
+    f_from, f_to = endpoint_fields
+    index: Dict[Tuple[str, str], QgsFeature] = {}
+
+    for f in pipes_layer.getFeatures():
+        key = _pipe_connection_key(f[f_from], f[f_to])
+        if key not in index:
+            index[key] = f
+
+    return index
+
+
+def _build_pipe_connection_index_from_geometry(
+    pipes_layer: QgsVectorLayer,
+    node_path: List[dict],
+) -> Dict[Tuple[str, str], QgsFeature]:
+    """
+    Build a pipe lookup by matching pipe endpoints to nodes from the profile path.
+    """
+    node_lookup = _build_node_lookup_from_path(node_path)
+    if not node_lookup:
+        return {}
+
+    index: Dict[Tuple[str, str], QgsFeature] = {}
+    for pipe in pipes_layer.getFeatures():
+        endpoints = _pipe_geometry_endpoints(pipe.geometry())
+        if endpoints is None:
+            continue
+
+        start_id = _nearest_node_id_for_point(endpoints[0], node_lookup)
+        end_id = _nearest_node_id_for_point(endpoints[1], node_lookup)
+        if not start_id or not end_id or start_id == end_id:
+            continue
+
+        key = _pipe_connection_key(start_id, end_id)
+        if key not in index:
+            index[key] = pipe
+
+    return index
+
+
+def _build_node_lookup_from_path(node_path: List[dict]) -> Dict[str, dict]:
+    """
+    Build a node lookup from path entries.
+    """
+    lookup: Dict[str, dict] = {}
+    for entry in node_path:
+        key = _normalize_node_id(entry.get("node_id"))
+        if not key:
+            continue
+        lookup[key] = {
+            "layer": entry.get("layer"),
+            "fid": entry.get("fid"),
+            "node_id": entry.get("node_id"),
+            "point": entry.get("point"),
+        }
+    return lookup
+
+
+def _build_pipe_graph_from_endpoint_fields(
+    pipes_layer: QgsVectorLayer,
+    endpoint_fields: Tuple[str, str],
+) -> Dict[str, List[Tuple[str, float]]]:
+    """
+    Build an undirected weighted graph from the pipes layer.
+    """
+    f_from, f_to = endpoint_fields
+    graph: Dict[str, List[Tuple[str, float]]] = {}
+
+    for pipe in pipes_layer.getFeatures():
+        a = _normalize_node_id(pipe[f_from])
+        b = _normalize_node_id(pipe[f_to])
+        if not a or not b:
+            continue
+
+        length = _pipe_length(pipe)
+
+        graph.setdefault(a, []).append((b, length))
+        graph.setdefault(b, []).append((a, length))
+
+    return graph
+
+
+def _build_pipe_graph_from_geometry(
+    pipes_layer: QgsVectorLayer,
+    node_lookup: Dict[str, dict],
+) -> Dict[str, List[Tuple[str, float]]]:
+    """
+    Build pipe connectivity by matching each pipe endpoint to the nearest node.
+    """
+    if not node_lookup:
+        raise ValueError("No network nodes found in the selected node layers.")
+
+    graph: Dict[str, List[Tuple[str, float]]] = {}
+
+    for pipe in pipes_layer.getFeatures():
+        geom = pipe.geometry()
+        endpoints = _pipe_geometry_endpoints(geom)
+        if endpoints is None:
+            continue
+
+        start_point, end_point = endpoints
+        start_id = _nearest_node_id_for_point(start_point, node_lookup)
+        end_id = _nearest_node_id_for_point(end_point, node_lookup)
+        if not start_id or not end_id or start_id == end_id:
+            continue
+
+        length = _pipe_length(pipe)
+
+        graph.setdefault(start_id, []).append((end_id, length))
+        graph.setdefault(end_id, []).append((start_id, length))
+
+    if not graph:
+        raise ValueError(
+            "Could not build pipe connectivity from geometry. Make sure the selected "
+            "node layers contain the nodes connected to the pipe endpoints."
+        )
+
+    return graph
+
+
+def _build_network_node_lookup(
+    node_layers: List[QgsVectorLayer],
+    node_id_field_network: str,
+) -> Dict[str, dict]:
+    """
+    Build a lookup {normalized_node_id -> node_path entry} from selected node layers.
+    """
+    lookup: Dict[str, dict] = {}
+    for layer in node_layers:
+        if layer is None or not isinstance(layer, QgsVectorLayer):
+            continue
+
+        fields = set(layer.fields().names())
+        if node_id_field_network not in fields:
+            continue
+
+        for feat in layer.getFeatures():
+            node_id = feat[node_id_field_network]
+            key = _normalize_node_id(node_id)
+            if key and key not in lookup:
+                lookup[key] = {
+                    "layer": layer,
+                    "fid": feat.id(),
+                    "node_id": node_id,
+                    "point": _node_point_from_feature(feat),
+                }
+
+    return lookup
+
+
+def _pipe_geometry_endpoints(geom: QgsGeometry) -> Optional[Tuple[QgsPointXY, QgsPointXY]]:
+    """
+    Return first and last vertices from a pipe geometry.
+    """
+    if geom is None or geom.isEmpty():
+        return None
+
+    try:
+        vertices = list(geom.vertices())
+        if len(vertices) < 2:
+            return None
+        return QgsPointXY(vertices[0]), QgsPointXY(vertices[-1])
+    except Exception:
+        return None
+
+
+def _node_point_from_feature(feat: QgsFeature) -> Optional[QgsPointXY]:
+    """
+    Return a representative point for a node feature.
+    """
+    geom = feat.geometry()
+    if geom is None or geom.isEmpty():
+        return None
+
+    try:
+        return QgsPointXY(geom.asPoint())
+    except Exception:
+        pass
+
+    try:
+        centroid = geom.centroid()
+        if centroid is not None and not centroid.isEmpty():
+            return QgsPointXY(centroid.asPoint())
+    except Exception:
+        pass
+
+    return None
+
+
+def _nearest_node_id_for_point(point: QgsPointXY, node_lookup: Dict[str, dict]) -> Optional[str]:
+    """
+    Find the nearest configured network node to a pipe endpoint.
+    """
+    point_geom = QgsGeometry.fromPointXY(point)
+    best_id = None
+    best_dist = None
+
+    for node_id, entry in node_lookup.items():
+        node_point = entry.get("point")
+        if node_point is None:
+            feat = _get_feature_by_fid(entry.get("layer"), entry.get("fid"))
+            if feat is None:
+                continue
+            node_point = _node_point_from_feature(feat)
+            entry["point"] = node_point
+        if node_point is None:
+            continue
+
+        try:
+            dist = float(QgsGeometry.fromPointXY(node_point).distance(point_geom))
+        except Exception:
+            continue
+
+        if best_dist is None or dist < best_dist:
+            best_dist = dist
+            best_id = node_id
+
+    return best_id
+
+
+def _shortest_node_path(
+    graph: Dict[str, List[Tuple[str, float]]],
+    start_id: str,
+    end_id: str,
+) -> List[str]:
+    """
+    Find the shortest node path in the pipe graph using Dijkstra.
+    """
+    if start_id == end_id:
+        return [start_id]
+    if start_id not in graph:
+        raise ValueError(f"Start node '{start_id}' was not found in pipe connectivity.")
+    if end_id not in graph:
+        raise ValueError(f"End node '{end_id}' was not found in pipe connectivity.")
+
+    queue = [(0.0, start_id, [start_id])]
+    best_dist = {start_id: 0.0}
+
+    while queue:
+        dist, node_id, path = heapq.heappop(queue)
+        if node_id == end_id:
+            return path
+        if dist > best_dist.get(node_id, float("inf")):
+            continue
+
+        for next_id, weight in graph.get(node_id, []):
+            next_dist = dist + weight
+            if next_dist < best_dist.get(next_id, float("inf")):
+                best_dist[next_id] = next_dist
+                heapq.heappush(queue, (next_dist, next_id, path + [next_id]))
+
+    raise ValueError(f"No connected path found between '{start_id}' and '{end_id}'.")
+
+
+def _pipe_endpoint_fields(pipes_fields: set) -> Optional[Tuple[str, str]]:
+    """
+    Return likely from/to field names in the pipes layer.
+    """
+    from_candidates = [
+        n for n in pipes_fields
+        if n.lower() in ("fromnode", "from_node", "node1", "startnode", "start_node")
+    ]
+    to_candidates = [
+        n for n in pipes_fields
+        if n.lower() in ("tonode", "to_node", "node2", "endnode", "end_node")
+    ]
+
+    if not from_candidates or not to_candidates:
+        return None
+
+    return from_candidates[0], to_candidates[0]
+
+
+def _pipe_length(pipe: QgsFeature) -> float:
+    """
+    Return the pipe segment length, preferring the QGISRed Length attribute.
+    """
+    length_field = _pipe_length_field(set(pipe.fields().names()))
+    if length_field:
+        try:
+            value = pipe[length_field]
+            if value is not None:
+                length = float(value)
+                if length >= 0.0:
+                    return length
+        except Exception:
+            pass
+
+    geom = pipe.geometry()
+    if geom is not None and not geom.isEmpty():
+        try:
+            return max(float(geom.length()), 0.0)
+        except Exception:
+            pass
+
+    return 0.0
+
+
+def _pipe_length_field(pipes_fields: set) -> Optional[str]:
+    """
+    Return the likely pipe length field name.
+    """
+    preferred = ("length", "len", "comprimento")
+    for wanted in preferred:
+        for field_name in pipes_fields:
+            if field_name.lower() == wanted:
+                return field_name
+    return None
+
+
+def _pipe_connection_key(node_id_1: Any, node_id_2: Any) -> Tuple[str, str]:
+    """
+    Normalize a pair of node IDs as an undirected dictionary key.
+    """
+    a = _normalize_node_id(node_id_1)
+    b = _normalize_node_id(node_id_2)
+    return tuple(sorted((a, b)))
+
+
+def _normalize_node_id(node_id: Any) -> str:
+    """
+    Normalize node IDs for tolerant matching across numeric/text fields.
+    """
+    return "" if node_id is None else str(node_id).strip()
 
 
 def _to_float(value: Any) -> float:

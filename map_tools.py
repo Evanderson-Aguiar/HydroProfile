@@ -30,6 +30,7 @@ from qgis.core import (
     QgsFeatureRequest,
     QgsVectorLayer,
     QgsFeature,
+    QgsGeometry,
 )
 
 
@@ -73,7 +74,7 @@ class NodePathMapTool(QgsMapTool):
             point.y() + tol_map_units
         )
 
-        layer, feat = self._find_first_node_feature_in_rect(rect)
+        layer, feat = self._find_nearest_node_feature_in_rect(rect, point)
         if layer is None or feat is None:
             # Nothing found near click; ignore silently.
             return
@@ -99,9 +100,9 @@ class NodePathMapTool(QgsMapTool):
             # Fallback: small constant
             return 1.0
 
-    def _find_first_node_feature_in_rect(self, rect: QgsRectangle) -> Tuple[Optional[QgsVectorLayer], Optional[QgsFeature]]:
+    def _find_nearest_node_feature_in_rect(self, rect: QgsRectangle, point) -> Tuple[Optional[QgsVectorLayer], Optional[QgsFeature]]:
         """
-        Search the dock's selected node layers for the first feature intersecting rect.
+        Search the dock's selected node layers for the nearest feature intersecting rect.
         Returns (layer, feature) or (None, None).
         """
         node_layers = []
@@ -113,19 +114,33 @@ class NodePathMapTool(QgsMapTool):
         if not node_layers:
             return None, None
 
-        # Prefer the smallest click-hit: we simply take the first layer with a hit.
-        # If you want "closest feature", we can refine by computing distances.
+        click_geom = QgsGeometry.fromPointXY(point)
+        best_layer = None
+        best_feat = None
+        best_dist = None
+
         for layer in node_layers:
             if layer is None:
                 continue
             if not isinstance(layer, QgsVectorLayer):
                 continue
 
-            req = QgsFeatureRequest().setFilterRect(rect).setLimit(1)
+            req = QgsFeatureRequest().setFilterRect(rect)
             for feat in layer.getFeatures(req):
-                return layer, feat
+                geom = feat.geometry()
+                if geom is None or geom.isEmpty():
+                    continue
+                try:
+                    dist = float(geom.distance(click_geom))
+                except Exception:
+                    continue
 
-        return None, None
+                if best_dist is None or dist < best_dist:
+                    best_dist = dist
+                    best_layer = layer
+                    best_feat = feat
+
+        return best_layer, best_feat
 
     def _current_node_id_field(self, layer: QgsVectorLayer) -> Optional[str]:
         """

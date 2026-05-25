@@ -1,8 +1,8 @@
 [general]
 name=HydroProfile
-description=Hydraulic profile generator for QGIS water distribution networks based on QGISRed results.
-about=HydroProfile is a QGIS plugin that generates hydraulic profiles along a user-defined path in pressurized water distribution networks using layers produced in QGISRed projects. The user selects a sequence of nodes on the map to define a path, and the plugin computes the cumulative distance along the path using pipe geometries. It can plot (1) the terrain/elevation profile from network node elevation attributes, (2) a selected nodal hydraulic variable from the node results layer (e.g., pressure or hydraulic head), and (3) optionally a selected link variable from the link results layer (e.g., flow, velocity, headloss), positioned along each segment. The chart is interactive and can be exported as PNG/SVG, and the computed series can be exported to CSV for engineering analysis and reporting.
-version=0.3.0
+description=Hydraulic profile generator for QGISRed water distribution networks.
+about=HydroProfile generates hydraulic profiles along water distribution network paths using QGISRed network layers and simulation results. Users can pick path waypoints manually or let the plugin automatically find intermediate nodes from pipe connectivity. The plugin supports English and Portuguese QGISRed network layer names, uses the pipe Length attribute for cumulative distance when available, plots terrain/elevation, node result variables and optional link result variables, supports primary/secondary plot axes per series, displays node/link IDs, and exports charts and CSV data for engineering analysis and reporting.
+version=1.1.0
 qgisMinimumVersion=3.30
 author=Evanderson H. Aguiar
 email=evanderson.eng@gmail.com
@@ -16,7 +16,7 @@ homepage=https://github.com/Evanderson-Aguiar/HydroProfile
 repository=https://github.com/Evanderson-Aguiar/HydroProfile
 tracker=https://github.com/Evanderson-Aguiar/HydroProfile/issues
 
-tags=hydraulic,profile,water distribution,QGISRed,EPANET,pressure,head,network analysis
+tags=hydraulic,profile,water distribution,QGISRed,EPANET,pressure,head,flow,network analysis,secondary axis
 
 [help]
 content=Documentation, usage examples and source code are available on the plugin repository homepage.

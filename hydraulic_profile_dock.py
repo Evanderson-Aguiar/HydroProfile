@@ -14,6 +14,7 @@ It also provides:
 
 from __future__ import annotations
 
+import unicodedata
 from typing import Optional, List
 
 from qgis.PyQt.QtCore import pyqtSignal
@@ -30,7 +31,7 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 
-from .logic import build_profile_data, export_profile_to_csv
+from .logic import build_profile_data, export_profile_to_csv, expand_path_with_intermediate_nodes
 
 
 class HydraulicProfileDock(QDockWidget):
@@ -53,6 +54,7 @@ class HydraulicProfileDock(QDockWidget):
 
         # Path as list of dicts: {"layer": QgsVectorLayer, "fid": int, "node_id": any}
         self.node_path: List[dict] = []
+        self.network_layer_language = "EN"
 
         self._setup_ui()
 
@@ -118,6 +120,16 @@ class HydraulicProfileDock(QDockWidget):
         self.cb_tanks = QComboBox()
         self.cb_pipes = QComboBox()
 
+        row_lang = QHBoxLayout()
+        self.btn_lang_en = QPushButton("EN")
+        self.btn_lang_pt = QPushButton("PT")
+        self.btn_lang_en.setCheckable(True)
+        self.btn_lang_pt.setCheckable(True)
+        self.btn_lang_en.setChecked(True)
+        row_lang.addWidget(self.btn_lang_en)
+        row_lang.addWidget(self.btn_lang_pt)
+
+        frm_net.addRow(QLabel("Layer names:"), row_lang)
         frm_net.addRow(QLabel("Junctions:"), self.cb_junctions)
         frm_net.addRow(QLabel("Reservoirs:"), self.cb_reservoirs)
         frm_net.addRow(QLabel("Tanks:"), self.cb_tanks)
@@ -125,15 +137,17 @@ class HydraulicProfileDock(QDockWidget):
 
         config_layout.addWidget(grp_network)
 
-        # --- Group: Node fields in network ---
-        grp_node_fields = QGroupBox("Network node fields")
+        # --- Group: Network fields ---
+        grp_node_fields = QGroupBox("Network fields")
         frm_nf = QFormLayout(grp_node_fields)
 
         self.cb_node_id_field_network = QComboBox()
         self.cb_node_elev_field = QComboBox()
+        self.cb_link_id_field_network = QComboBox()
 
         frm_nf.addRow(QLabel("Node ID field (network):"), self.cb_node_id_field_network)
         frm_nf.addRow(QLabel("Elevation field (network):"), self.cb_node_elev_field)
+        frm_nf.addRow(QLabel("Link ID field (network):"), self.cb_link_id_field_network)
 
         config_layout.addWidget(grp_node_fields)
 
@@ -145,6 +159,15 @@ class HydraulicProfileDock(QDockWidget):
         self.chk_show_links = QCheckBox("Show link results")
         self.chk_show_terrain = QCheckBox("Show terrain/elevation profile")
         self.chk_show_labels = QCheckBox("Show data labels")
+        self.chk_show_node_ids = QCheckBox("Show node IDs")
+        self.chk_show_link_ids = QCheckBox("Show link IDs")
+
+        self.cb_axis_terrain = QComboBox()
+        self.cb_axis_nodes = QComboBox()
+        self.cb_axis_links = QComboBox()
+        for combo in (self.cb_axis_terrain, self.cb_axis_nodes, self.cb_axis_links):
+            combo.addItem("Primary axis", "primary")
+            combo.addItem("Secondary axis", "secondary")
 
         self.chk_show_nodes.setChecked(True)
         self.chk_show_terrain.setChecked(True)
@@ -157,6 +180,11 @@ class HydraulicProfileDock(QDockWidget):
         frm_vis.addRow(self.chk_show_links)
         frm_vis.addRow(self.chk_show_terrain)
         frm_vis.addRow(self.chk_show_labels)
+        frm_vis.addRow(self.chk_show_node_ids)
+        frm_vis.addRow(self.chk_show_link_ids)
+        frm_vis.addRow(QLabel("Terrain axis:"), self.cb_axis_terrain)
+        frm_vis.addRow(QLabel("Node results axis:"), self.cb_axis_nodes)
+        frm_vis.addRow(QLabel("Link results axis:"), self.cb_axis_links)
         frm_vis.addRow(QLabel("Title:"), self.le_title)
         frm_vis.addRow(QLabel("X label:"), self.le_xlabel)
         frm_vis.addRow(QLabel("Y label:"), self.le_ylabel)
@@ -173,9 +201,11 @@ class HydraulicProfileDock(QDockWidget):
         row_btns.addWidget(self.btn_select_path)
         row_btns.addWidget(self.btn_reset_path)
 
+        self.chk_auto_intermediate_nodes = QCheckBox("Find intermediate nodes automatically")
         self.lst_path = QListWidget()
 
         v_path.addLayout(row_btns)
+        v_path.addWidget(self.chk_auto_intermediate_nodes)
         v_path.addWidget(self.lst_path)
 
         config_layout.addWidget(grp_path)
@@ -215,6 +245,9 @@ class HydraulicProfileDock(QDockWidget):
         self.cb_node_results_layer.currentIndexChanged.connect(self._on_node_results_layer_changed)
         self.cb_link_results_layer.currentIndexChanged.connect(self._on_link_results_layer_changed)
         self.cb_junctions.currentIndexChanged.connect(self.populate_network_fields)
+        self.cb_pipes.currentIndexChanged.connect(self.populate_pipe_fields)
+        self.btn_lang_en.clicked.connect(lambda: self._set_network_layer_language("EN"))
+        self.btn_lang_pt.clicked.connect(lambda: self._set_network_layer_language("PT"))
 
     # ------------------------------------------------------------------
     # Public methods called by plugin
@@ -232,10 +265,7 @@ class HydraulicProfileDock(QDockWidget):
         self._fill_layer_combo(self.cb_pipes)
 
         # Auto-select by name heuristics (safe + user can override)
-        self._select_layer_by_name(self.cb_junctions, ["junction", "junctions"])
-        self._select_layer_by_name(self.cb_reservoirs, ["reservoir", "reservoirs"])
-        self._select_layer_by_name(self.cb_tanks, ["tank", "tanks"])
-        self._select_layer_by_name(self.cb_pipes, ["pipe", "pipes"])
+        self._select_network_layers_by_language()
 
         self._select_layer_by_name(self.cb_node_results_layer, ["node result", "node_results", "nodal", "node"])
         self._select_layer_by_name(self.cb_link_results_layer, ["link result", "link_results", "pipe_results", "link"])
@@ -244,6 +274,7 @@ class HydraulicProfileDock(QDockWidget):
         self._on_node_results_layer_changed()
         self._on_link_results_layer_changed()
         self.populate_network_fields()
+        self.populate_pipe_fields()
 
     def add_node_to_path(self, layer: QgsVectorLayer, feature, node_id_value):
         """
@@ -315,10 +346,61 @@ class HydraulicProfileDock(QDockWidget):
             layer = self._get_layer_by_id(layer_id)
             if not layer:
                 continue
-            lname = layer.name().lower()
-            if any(kw in lname for kw in name_keywords):
+            lname = self._normalize_text(layer.name())
+            if any(self._normalize_text(kw) in lname for kw in name_keywords):
                 combo.setCurrentIndex(i)
                 break
+
+    def _select_network_layers_by_language(self):
+        keywords = self._network_layer_keywords()
+        self._select_layer_by_name(self.cb_junctions, keywords["junctions"])
+        self._select_layer_by_name(self.cb_reservoirs, keywords["reservoirs"])
+        self._select_layer_by_name(self.cb_tanks, keywords["tanks"])
+        self._select_layer_by_name(self.cb_pipes, keywords["pipes"])
+
+    def _network_layer_keywords(self):
+        if self.network_layer_language == "PT":
+            return {
+                "junctions": ["juncoes"],
+                "reservoirs": ["reservatorios"],
+                "tanks": ["tanques"],
+                "pipes": ["tubulacoes"],
+            }
+
+        return {
+            "junctions": ["junction", "junctions"],
+            "reservoirs": ["reservoir", "reservoirs"],
+            "tanks": ["tank", "tanks"],
+            "pipes": ["pipe", "pipes"],
+        }
+
+        if self.network_layer_language == "PT":
+            return {
+                "junctions": ["junções", "juncoes"],
+                "reservoirs": ["reservatórios", "reservatorios"],
+                "tanks": ["tanques"],
+                "pipes": ["tubulações", "tubulacoes"],
+            }
+
+        return {
+            "junctions": ["junction", "junctions"],
+            "reservoirs": ["reservoir", "reservoirs"],
+            "tanks": ["tank", "tanks"],
+            "pipes": ["pipe", "pipes"],
+        }
+
+    def _set_network_layer_language(self, language: str):
+        self.network_layer_language = language
+        self.btn_lang_en.setChecked(language == "EN")
+        self.btn_lang_pt.setChecked(language == "PT")
+        self._select_network_layers_by_language()
+        self.populate_network_fields()
+        self.populate_pipe_fields()
+
+    def _normalize_text(self, text: str) -> str:
+        text = "" if text is None else str(text)
+        normalized = unicodedata.normalize("NFKD", text)
+        return "".join(c for c in normalized if not unicodedata.combining(c)).lower()
 
     def _select_field_by_name(self, combo: QComboBox, keywords):
         for i in range(combo.count()):
@@ -381,6 +463,25 @@ class HydraulicProfileDock(QDockWidget):
         self._select_field_by_name(self.cb_node_id_field_network, ["nodeid", "id", "node_id"])
         self._select_field_by_name(self.cb_node_elev_field, ["elev", "elevation", "cota", "z"])
 
+    def populate_pipe_fields(self, *args):
+        """
+        Fill network link field combos based on the selected pipes layer.
+        """
+        layer = self.current_pipes_layer()
+
+        self.cb_link_id_field_network.clear()
+
+        if not layer:
+            return
+
+        for field in layer.fields():
+            self.cb_link_id_field_network.addItem(field.name())
+
+        self._select_field_by_name(
+            self.cb_link_id_field_network,
+            ["linkid", "pipeid", "pipe_id", "link_id", "id"]
+        )
+
     # ------------------------------------------------------------------
     # Path controls
     # ------------------------------------------------------------------
@@ -418,13 +519,15 @@ class HydraulicProfileDock(QDockWidget):
         node_id_field_network = self.cb_node_id_field_network.currentText()
         node_elev_field = self.cb_node_elev_field.currentText()
 
-        # Assumption (kept for now): link id field in network == link id field in results.
-        # If your QGISRed schema differs, add a dedicated combo in the UI.
-        link_id_field_network = link_id_field_results
+        link_id_field_network = self.cb_link_id_field_network.currentText()
 
         try:
+            profile_node_path = self._profile_node_path(
+                pipes_layer=pipes_layer,
+                node_id_field_network=node_id_field_network,
+            )
             profile_data = build_profile_data(
-                node_path=self.node_path,
+                node_path=profile_node_path,
                 pipes_layer=pipes_layer,
                 node_results_layer=node_results_layer,
                 link_results_layer=link_results_layer,
@@ -451,44 +554,85 @@ class HydraulicProfileDock(QDockWidget):
         xlabel = self.le_xlabel.text().strip() or "Cumulative distance [m]"
         ylabel = self.le_ylabel.text().strip() or "Elevation / variable"
         show_labels = self.chk_show_labels.isChecked()
+        show_node_ids = self.chk_show_node_ids.isChecked()
+        show_link_ids = self.chk_show_link_ids.isChecked()
 
         self.figure.clear()
-        ax = self.figure.add_subplot(111)
+        ax_primary = self.figure.add_subplot(111)
+        ax_secondary = None
+
+        def axis_for(combo: QComboBox):
+            nonlocal ax_secondary
+            if combo.currentData() != "secondary":
+                return ax_primary
+            if ax_secondary is None:
+                ax_secondary = ax_primary.twinx()
+            return ax_secondary
 
         # Terrain profile
         if profile_data.get("terrain", {}).get("dist"):
             xs = profile_data["terrain"]["dist"]
             ys = profile_data["terrain"]["elev"]
+            ax = axis_for(self.cb_axis_terrain)
             ax.plot(xs, ys, marker="o", linestyle="-", label="Terrain (elevation)")
-            if show_labels:
-                for x, y in zip(xs, ys):
-                    ax.annotate(f"{y:.2f}", (x, y), textcoords="offset points", xytext=(0, 5), ha="center")
+            ids = profile_data["terrain"].get("node_ids", [])
+            for idx, (x, y) in enumerate(zip(xs, ys)):
+                labels = []
+                if show_labels:
+                    labels.append(f"{y:.2f}")
+                if show_node_ids and idx < len(ids):
+                    labels.append(str(ids[idx]))
+                if labels:
+                    ax.annotate("\n".join(labels), (x, y), textcoords="offset points", xytext=(0, 5), ha="center")
 
         # Node values
         if profile_data.get("nodes", {}).get("dist"):
             xs = profile_data["nodes"]["dist"]
             ys = profile_data["nodes"]["value"]
             field_name = profile_data["nodes"].get("field", "node var")
+            ax = axis_for(self.cb_axis_nodes)
             ax.plot(xs, ys, marker="s", linestyle="-", label=f"Nodes ({field_name})")
-            if show_labels:
-                for x, y in zip(xs, ys):
-                    ax.annotate(f"{y:.2f}", (x, y), textcoords="offset points", xytext=(0, 5), ha="center")
+            ids = profile_data["nodes"].get("node_ids", [])
+            for idx, (x, y) in enumerate(zip(xs, ys)):
+                labels = []
+                if show_labels:
+                    labels.append(f"{y:.2f}")
+                if show_node_ids and idx < len(ids):
+                    labels.append(str(ids[idx]))
+                if labels:
+                    ax.annotate("\n".join(labels), (x, y), textcoords="offset points", xytext=(0, 5), ha="center")
 
         # Link values
         if profile_data.get("links", {}).get("dist"):
             xs = profile_data["links"]["dist"]
             ys = profile_data["links"]["value"]
             field_name = profile_data["links"].get("field", "link var")
+            ax = axis_for(self.cb_axis_links)
             ax.plot(xs, ys, marker="^", linestyle="--", label=f"Links ({field_name})")
-            if show_labels:
-                for x, y in zip(xs, ys):
-                    ax.annotate(f"{y:.2f}", (x, y), textcoords="offset points", xytext=(0, 5), ha="center")
+            ids = profile_data["links"].get("link_ids", [])
+            for idx, (x, y) in enumerate(zip(xs, ys)):
+                labels = []
+                if show_labels:
+                    labels.append(f"{y:.2f}")
+                if show_link_ids and idx < len(ids):
+                    labels.append(str(ids[idx]))
+                if labels:
+                    ax.annotate("\n".join(labels), (x, y), textcoords="offset points", xytext=(0, 5), ha="center")
 
-        ax.set_title(title)
-        ax.set_xlabel(xlabel)
-        ax.set_ylabel(ylabel)
-        ax.grid(True)
-        ax.legend()
+        ax_primary.set_title(title)
+        ax_primary.set_xlabel(xlabel)
+        ax_primary.set_ylabel(ylabel)
+        ax_primary.grid(True)
+        if ax_secondary is not None:
+            ax_secondary.set_ylabel("Secondary axis")
+
+        handles, labels = ax_primary.get_legend_handles_labels()
+        if ax_secondary is not None:
+            h2, l2 = ax_secondary.get_legend_handles_labels()
+            handles += h2
+            labels += l2
+        if handles:
+            ax_primary.legend(handles, labels)
 
         self.canvas.draw()
 
@@ -516,11 +660,15 @@ class HydraulicProfileDock(QDockWidget):
 
         node_id_field_network = self.cb_node_id_field_network.currentText()
         node_elev_field = self.cb_node_elev_field.currentText()
-        link_id_field_network = link_id_field_results  # same assumption as above
+        link_id_field_network = self.cb_link_id_field_network.currentText()
 
         try:
+            profile_node_path = self._profile_node_path(
+                pipes_layer=pipes_layer,
+                node_id_field_network=node_id_field_network,
+            )
             profile_data = build_profile_data(
-                node_path=self.node_path,
+                node_path=profile_node_path,
                 pipes_layer=pipes_layer,
                 node_results_layer=node_results_layer,
                 link_results_layer=link_results_layer,
@@ -539,6 +687,20 @@ class HydraulicProfileDock(QDockWidget):
             QMessageBox.information(self, "HydroProfile", "CSV exported successfully.")
         except Exception as e:
             QMessageBox.critical(self, "HydroProfile - Error", str(e))
+
+    def _profile_node_path(self, pipes_layer: QgsVectorLayer, node_id_field_network: str) -> List[dict]:
+        """
+        Return either the clicked path or a network-expanded path.
+        """
+        if not self.chk_auto_intermediate_nodes.isChecked():
+            return self.node_path
+
+        return expand_path_with_intermediate_nodes(
+            node_path=self.node_path,
+            pipes_layer=pipes_layer,
+            node_layers=self.node_layers(),
+            node_id_field_network=node_id_field_network,
+        )
 
     def _on_export_plot_clicked(self):
         filename, _ = QFileDialog.getSaveFileName(
